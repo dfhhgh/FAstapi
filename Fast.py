@@ -52,7 +52,30 @@ async def posttask(task:Task):
         )
         return tasks[-1]
     raise HTTPException (status_code=400, detail="Title cannot be empty"  )
+class UpdateTask(BaseModel):
+    title:str|None=None
+    done:bool|None=None
+
+@app.put('/tasks/{id}')
+async def puttask(id:int,Update:UpdateTask):
+    for task in tasks:
+            if task['id']==id:
+                if Update.title is not None and Update.title.strip():
+                  task['title']=Update.title
+                if Update.done is not None:
+                  task['done']=Update.done
+                return task
+
+    raise HTTPException (status_code=404, detail=f"Task {id} not found" )
+    
+        
 
 
-
+@app.delete('/tasks/{id}',status_code=204)
+async def deletetask(id:int):
+        for task in tasks:
+            if task['id']==id:
+                tasks.remove(task)
+                return 
+        raise HTTPException (status_code=404, detail="Unknown id "  )
     
