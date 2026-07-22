@@ -30,7 +30,11 @@ tasks = [
         "done": False
     }
 ]
-@app.get('/tasks')
+@app.get(
+    "/tasks",
+    summary="Get all tasks",
+    description="Returns a list of all tasks."
+)
 async def gettasks():
     return tasks
 @app.get('/tasks/{id}')
@@ -40,9 +44,14 @@ async def gettask(id:int):
             return task
     raise HTTPException (status_code=404, detail=f"Task {id} not found" )
 
-@app.post('/tasks',status_code=201)
+@app.post(
+    "/tasks",
+    summary="Create a task",
+    description="Creates a new task and returns it.",
+    status_code=201
+)
 async def posttask(task:Task):
-    if not  task.title.strip():
+    if   task.title.strip():
         tasks.append(
         {
             "id":tasks[-1]["id"] + 1,
@@ -56,7 +65,11 @@ class UpdateTask(BaseModel):
     title:str|None=None
     done:bool|None=None
 
-@app.put('/tasks/{id}')
+@app.put(
+    "/tasks/{id}",
+    summary="Update a task",
+    description="Updates an existing task."
+)
 async def puttask(id:int,Update:UpdateTask):
     for task in tasks:
             if task['id']==id:
@@ -71,7 +84,12 @@ async def puttask(id:int,Update:UpdateTask):
         
 
 
-@app.delete('/tasks/{id}',status_code=204)
+@app.delete(
+    "/tasks/{id}",
+    summary="Delete a task",
+    description="Deletes a task by its ID.",
+    status_code=204
+)
 async def deletetask(id:int):
         for task in tasks:
             if task['id']==id:
