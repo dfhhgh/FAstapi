@@ -1,72 +1,139 @@
 # Task API
 
-A simple CRUD REST API built with **FastAPI** that demonstrates the basic CRUD (Create, Read, Update, Delete) operations on tasks.
+A CRUD REST API built with **FastAPI**, **PostgreSQL**, and **Docker Compose** for task management.
 
 ---
 
 ## Features
 
-- Create tasks
-- Read all tasks
-- Read a task by ID
-- Update tasks
-- Delete tasks
+- Create, read, update, and delete tasks
+- Persistent data storage with PostgreSQL
+- Containerized with Docker Compose
+- Repository abstraction for swappable storage
 - Interactive Swagger documentation
 
 ---
 
-## Why SQLite
+## Architecture
 
-SQLite was chosen for this project because:
+```text
+HTTP Request
+  ↓
+Router
+  ↓
+TaskService
+  ↓
+TaskRepository
+  ↓
+PostgresTaskRepository
+  ↓
+PostgreSQL
+```
 
-- It is **lightweight** and requires no configuration.
-- It does **not require a separate database server** to run.
-- The entire database is stored in a **single local file** (`tasks.db`).
-- It is well-suited for small learning projects like this one.
+The application uses a repository abstraction. `TaskRepository` defines the storage interface, and `PostgresTaskRepository` implements it with PostgreSQL.
 
----
-
-## Database
-
-The application uses an SQLite database file called `tasks.db`, stored in the project root directory.
-
-The database and the `tasks` table are **created automatically** when the application starts, if they do not already exist. The table schema is:
-
-| Column | Type |
-|--------|------|
-| `id` | INTEGER PRIMARY KEY |
-| `title` | TEXT |
-| `done` | BOOLEAN |
-
-Three sample tasks are inserted automatically when the database is first created.
+The service and route layers remained unchanged when SQLiteTaskRepository was replaced by PostgresTaskRepository in A3.
 
 ---
 
-## Installation
+## PostgreSQL
 
-Install the required packages:
+The application uses PostgreSQL as its persistent database.
+
+| Property | Value |
+|----------|-------|
+| PostgreSQL version | 16 |
+| Database | `tasksdb` |
+| Compose service name | `db` |
+| Persistent storage | Docker named volume `pgdata` |
+
+PostgreSQL runs inside a Docker container. Data is persisted using the Docker named volume `pgdata`. Docker may display the actual volume name with the Compose project prefix, such as `fastapi_pgdata`.
+
+---
+
+## Environment Variables
+
+The application uses the `DATABASE_URL` environment variable to connect to PostgreSQL.
+
+| File | Committed | Description |
+|------|-----------|-------------|
+| `.env` | No (gitignored) | Local/private configuration |
+| `.env.example` | Yes | Template for `.env` |
+
+Inside Docker Compose, PostgreSQL is reached using the Compose service name `db`:
+
+```text
+postgresql://user:password@db:5432/tasksdb
+```
+
+---
+
+## Run with Docker Compose
+
+The primary way to start the project is with Docker Compose:
 
 ```bash
-pip install -r requirment.txt
+docker compose up --build
+```
+
+This starts both services:
+
+- **FastAPI** application
+- **PostgreSQL** database
+
+The application is available at:
+
+```
+http://localhost:8000
+```
+
+Swagger UI:
+
+```
+http://localhost:8000/docs
+```
+
+The PostgreSQL database and `tasks` table are created automatically on first startup. No manual database setup is required.
+
+### Safe restart
+
+```bash
+docker compose down
+docker compose up -d
+```
+
+By default, `docker compose down` removes the containers and networks but preserves named volumes, so PostgreSQL data remains available when the stack is started again.
+
+**Do not use** `docker compose down -v` because `-v` removes the volume and destroys all persisted data.
+
+### Docker architecture
+
+```text
+FastAPI container
+    |
+    | db:5432
+    ↓
+PostgreSQL container
+    |
+    ↓
+Docker named volume: pgdata
 ```
 
 ---
 
-## Run the project
+## SQL Initialization
 
-Start the FastAPI server:
+The file `sql/init.sql` creates the `tasks` table:
 
-```bash
-uvicorn Fast:app --reload
+```sql
+CREATE TABLE IF NOT EXISTS tasks (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    done BOOLEAN NOT NULL DEFAULT FALSE
+);
 ```
 
-The database will be created automatically on the first run.
-
-Open Swagger UI in your browser:
-
-```
-http://127.0.0.1:8000/docs
-```
+PostgreSQL initialization scripts in `/docker-entrypoint-initdb.d/` run during first-time database initialization only. They do not run every time `docker compose up` is executed against an already initialized volume.
 
 ---
 
@@ -87,7 +154,7 @@ http://127.0.0.1:8000/docs
 ## Example `curl -i`
 
 ```bash
-curl -i http://127.0.0.1:8000/tasks
+curl -i http://localhost:8000/tasks
 ```
 
 Example output:
@@ -117,17 +184,87 @@ content-type: application/json
 
 ---
 
-## SQLite Database Viewer
+## Persistence Verification
+
+Persistence was verified by testing that task data survives both application and PostgreSQL container restarts without removing the Docker volume.
+
+### Test performed
+
+1. Two tasks were created through `POST /tasks`.
+2. The rows were confirmed directly in PostgreSQL.
+3. The FastAPI container was restarted (`docker compose restart app`). The tasks remained available.
+4. The PostgreSQL container was restarted (`docker compose restart db`). The tasks remained available.
+5. The PostgreSQL container was removed and recreated (`docker compose stop db`, `docker compose rm -f db`, `docker compose up -d db`). The Docker PostgreSQL volume was **not** deleted.
+6. The same tasks remained available after recreation.
+7. PostgreSQL was queried directly again to confirm the rows still existed.
+
+### Conclusion
+
+This proves persistence through the Docker named volume `pgdata`. Stopping and recreating the PostgreSQL container reattaches the same volume, preserving all data.
+
+---
+
+## Swagger UI
+
+![Swagger UI](images/Screenshot_22-7-2026_221724_127.0.0.1.jpeg)
+
+---
+
+## Optional Local Development (A2 historical)
+
+The following commands are from the earlier A2 setup that used SQLite. They are not the primary way to run the current A3 project.
+
+```bash
+pip install -r requirment.txt
+uvicorn Fast:app --reload
+```
+
+Open Swagger UI:
+
+```
+http://127.0.0.1:8000/docs
+```
+
+---
+
+## A2 SQLite History
+
+In A2, the application used **SQLite** as its storage backend.
+
+A2 storage flow:
+
+```text
+SQLiteTaskRepository
+  ↓
+SQLite (tasks.db)
+```
+
+A3 storage flow:
+
+```text
+PostgresTaskRepository
+  ↓
+PostgreSQL (Docker)
+```
+
+### Why SQLite was used in A2
+
+SQLite was chosen for A2 because:
+
+- It is lightweight and requires no configuration.
+- It does not require a separate database server to run.
+- The entire database is stored in a single local file (`tasks.db`).
+- It was well-suited for the learning project in A2.
+
+### SQLite database viewer
 
 The SQLite database was inspected using DB Browser for SQLite.
 
 ![SQLite Database Viewer](images/stage4-database.png)
 
----
+### Example SQL query (A2)
 
-## Example SQL Query
-
-The following query was executed during Stage 4 using DB Browser for SQLite:
+The following query was executed during A2 Stage 4 using DB Browser for SQLite:
 
 ```sql
 SELECT * FROM tasks WHERE done = 1;
@@ -135,22 +272,30 @@ SELECT * FROM tasks WHERE done = 1;
 
 This query returns only the completed tasks (where `done` is `1` / `true`).
 
----
+### Stage 4 verification (A2)
 
-## Stage 4 Verification
+During A2 Stage 4, the database was manually modified using DB Browser for SQLite.
 
-During Stage 4, the database was manually modified using DB Browser for SQLite.
-
-For example, after running the following SQL statement:
+For example, after running:
 
 ```sql
 UPDATE tasks SET done = 1;
 ```
 
-the `GET /tasks` endpoint was called and confirmed that all tasks now had `done: true`. This verified that the API reads directly from the SQLite database.
+the `GET /tasks` endpoint confirmed that all tasks now had `done: true`. This verified that the API reads directly from the database.
 
 ---
 
-## Swagger UI
+## A3 Containerization Summary
 
-![Swagger UI](images/Screenshot_22-7-2026_221724_127.0.0.1.jpeg)
+A3 demonstrates the following:
+
+- **PostgreSQL in Docker**: PostgreSQL 16 runs as a containerized service.
+- **Persistent Docker volume**: The named volume `pgdata` ensures data survives container restarts and recreation.
+- **Repository abstraction**: `TaskRepository` defines the storage interface.
+- **PostgresTaskRepository**: Implements the repository interface with PostgreSQL using `psycopg`.
+- **Docker Compose**: `docker compose up --build` starts the full stack (FastAPI + PostgreSQL).
+- **Environment-based configuration**: `DATABASE_URL` is set via environment variables. Secrets are in `.env` (gitignored).
+- **Persistence across container recreation**: Data survives PostgreSQL container removal and recreation as long as the volume is preserved.
+
+The application storage was switched by replacing the repository implementation and updating the dependency wiring, while the service and route layers remained unchanged. Docker, SQL initialization, and environment configuration were added to containerize the stack.
