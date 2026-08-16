@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 
-from app.auth_dependency import get_current_user
+from app.auth_dependency import get_current_user, security
 
 gates_router = APIRouter()
 
@@ -18,6 +18,7 @@ async def public_info():
     "/protected/profile",
     summary="Protected profile",
     description="Returns verified user profile. Requires a valid Bearer token.",
+    dependencies=[Depends(security)],
 )
 async def protected_profile(auth=Depends(get_current_user)):
     user = auth["user"]
@@ -32,6 +33,7 @@ async def protected_profile(auth=Depends(get_current_user)):
     "/protected/dashboard",
     summary="Protected dashboard",
     description="Returns dashboard data. Requires a valid Bearer token.",
+    dependencies=[Depends(security)],
 )
 async def protected_dashboard(auth=Depends(get_current_user)):
     user = auth["user"]

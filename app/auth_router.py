@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 
-from app.auth_dependency import get_current_user
+from app.auth_dependency import get_current_user, security
 from app.models import AuthRequest, AuthResponse
 from app.supabase_client import get_supabase
 
@@ -74,6 +74,7 @@ async def login(body: AuthRequest):
     status_code=204,
     summary="Log out the current user",
     description="Invalidates the current session. Requires a valid Bearer token.",
+    dependencies=[Depends(security)],
 )
 async def logout(auth=Depends(get_current_user)):
     client = get_supabase()

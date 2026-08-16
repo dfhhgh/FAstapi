@@ -1,7 +1,10 @@
 from fastapi import Header
+from fastapi.security import HTTPBearer
 
 from app.auth_error import AuthError
 from app.supabase_client import get_supabase
+
+security = HTTPBearer(auto_error=False)
 
 
 def get_current_user(authorization: str | None = Header(None)):
