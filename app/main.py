@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from app.postgres_repository import PostgresTaskRepository
 from app.service import TaskService
 from app.router import router
+from app.auth_router import auth_router
 from app.supabase_client import SUPABASE_URL, SUPABASE_KEY
 
 app = FastAPI()
@@ -10,6 +11,7 @@ app = FastAPI()
 repository = PostgresTaskRepository()
 task_service = TaskService(repository)
 
+app.include_router(auth_router)
 app.include_router(router)
 
 
