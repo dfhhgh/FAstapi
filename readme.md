@@ -1,301 +1,297 @@
-# Task API
+# FastAPI Task API
 
-A CRUD REST API built with **FastAPI**, **PostgreSQL**, and **Docker Compose** for task management.
+A full-stack backend application demonstrating **FastAPI**, **PostgreSQL**, **Docker Compose**, and **Supabase Authentication** with JWT/Bearer token verification, protected routes, and Swagger UI documentation.
 
 ---
 
 ## Features
 
-- Create, read, update, and delete tasks
-- Persistent data storage with PostgreSQL
-- Containerized with Docker Compose
-- Repository abstraction for swappable storage
-- Interactive Swagger documentation
+- CRUD task API with full REST endpoints
+- PostgreSQL persistence with Docker Compose
+- Supabase Authentication (signup, login, logout)
+- JWT/Bearer token verification
+- Public and protected routes
+- Reusable FastAPI authentication dependency
+- Swagger UI with Bearer authentication support
+- Repository abstraction pattern
+- Persistent Docker volumes
 
 ---
 
 ## Architecture
 
+### Task CRUD Flow
+
 ```text
 HTTP Request
-  ↓
+    ↓
 Router
-  ↓
+    ↓
 TaskService
-  ↓
+    ↓
 TaskRepository
-  ↓
+    ↓
 PostgresTaskRepository
-  ↓
+    ↓
 PostgreSQL
 ```
 
-The application uses a repository abstraction. `TaskRepository` defines the storage interface, and `PostgresTaskRepository` implements it with PostgreSQL.
-
-The service and route layers remained unchanged when SQLiteTaskRepository was replaced by PostgresTaskRepository in A3.
-
----
-
-## PostgreSQL
-
-The application uses PostgreSQL as its persistent database.
-
-| Property | Value |
-|----------|-------|
-| PostgreSQL version | 16 |
-| Database | `tasksdb` |
-| Compose service name | `db` |
-| Persistent storage | Docker named volume `pgdata` |
-
-PostgreSQL runs inside a Docker container. Data is persisted using the Docker named volume `pgdata`. Docker may display the actual volume name with the Compose project prefix, such as `fastapi_pgdata`.
-
----
-
-## Environment Variables
-
-The application uses the `DATABASE_URL` environment variable to connect to PostgreSQL.
-
-| File | Committed | Description |
-|------|-----------|-------------|
-| `.env` | No (gitignored) | Local/private configuration |
-| `.env.example` | Yes | Template for `.env` |
-
-Inside Docker Compose, PostgreSQL is reached using the Compose service name `db`:
+### Authentication Flow
 
 ```text
-postgresql://user:password@db:5432/tasksdb
+Client
+    ↓
+Bearer Token
+    ↓
+get_current_user (FastAPI Dependency)
+    ↓
+Supabase Auth (get_user)
+    ↓
+Verified User
+    ↓
+Protected Route
 ```
+
+Authentication logic is centralized in a single reusable FastAPI dependency (`app/auth_dependency.py`). All protected endpoints use `Depends(get_current_user)` to verify tokens through Supabase before executing route logic.
 
 ---
 
-## Run with Docker Compose
+## Environment Setup
 
-The primary way to start the project is with Docker Compose:
+### 1. Create `.env` from the template
+
+```bash
+cp .env.example .env
+```
+
+### 2. Add your Supabase credentials
+
+Edit `.env` and replace the placeholders with your own Supabase project values:
+
+```text
+DATABASE_URL=postgresql://user:password@localhost:5433/tasksdb
+
+SUPABASE_URL=your_project_url
+SUPABASE_KEY=your_anon_key
+```
+
+**Important:**
+- `.env` must **never** be committed to Git (it is gitignored).
+- You must use your own Supabase project credentials.
+- `.env.example` is safe to commit because it contains only placeholders.
+
+---
+
+## Supabase Setup
+
+1. Create a free account at [supabase.com](https://supabase.com).
+2. Create a new project.
+3. Go to **Settings > API** and copy:
+   - **Project URL** → put into `SUPABASE_URL` in `.env`
+   - **Anon/public key** → put into `SUPABASE_KEY` in `.env`
+4. Use your own Supabase project — do not share credentials.
+
+---
+
+## Installation / Running
+
+### Start with Docker Compose
 
 ```bash
 docker compose up --build
 ```
 
 This starts both services:
+- **FastAPI** application on port `8000`
+- **PostgreSQL** database on port `5433`
 
-- **FastAPI** application
-- **PostgreSQL** database
+### Access the application
 
-The application is available at:
+| URL | Description |
+|-----|-------------|
+| `http://localhost:8000` | API root |
+| `http://localhost:8000/docs` | Swagger UI |
 
-```
-http://localhost:8000
-```
+### Data persistence
 
-Swagger UI:
+PostgreSQL data is persisted in a Docker named volume (`pgdata`). The database and `tasks` table are created automatically on first startup.
 
-```
-http://localhost:8000/docs
-```
-
-The PostgreSQL database and `tasks` table are created automatically on first startup. No manual database setup is required.
-
-### Safe restart
+**Safe restart** (preserves data):
 
 ```bash
 docker compose down
 docker compose up -d
 ```
 
-By default, `docker compose down` removes the containers and networks but preserves named volumes, so PostgreSQL data remains available when the stack is started again.
-
-**Do not use** `docker compose down -v` because `-v` removes the volume and destroys all persisted data.
-
-### Docker architecture
-
-```text
-FastAPI container
-    |
-    | db:5432
-    ↓
-PostgreSQL container
-    |
-    ↓
-Docker named volume: pgdata
-```
+**Do not use** `docker compose down -v` — the `-v` flag removes the volume and destroys all data.
 
 ---
 
-## SQL Initialization
-
-The file `sql/init.sql` creates the `tasks` table:
-
-```sql
-CREATE TABLE IF NOT EXISTS tasks (
-    id SERIAL PRIMARY KEY,
-    title TEXT NOT NULL,
-    done BOOLEAN NOT NULL DEFAULT FALSE
-);
-```
-
-PostgreSQL initialization scripts in `/docker-entrypoint-initdb.d/` run during first-time database initialization only. They do not run every time `docker compose up` is executed against an already initialized volume.
-
----
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/` | Returns API information |
-| GET | `/health` | Health check |
-| GET | `/tasks` | Get all tasks |
-| GET | `/tasks/{id}` | Get a task by ID |
-| POST | `/tasks` | Create a new task |
-| PUT | `/tasks/{id}` | Update an existing task |
-| DELETE | `/tasks/{id}` | Delete a task |
-
----
-
-## Example `curl -i`
+## Quick Start
 
 ```bash
-curl -i http://localhost:8000/tasks
-```
+# 1. Clone the repository
+git clone https://github.com/dfhhgh/FAstapi.git
+cd FAstapi
 
-Example output:
+# 2. Create your .env file
+cp .env.example .env
+# Edit .env and add your Supabase credentials
 
-```text
-HTTP/1.1 200 OK
-content-type: application/json
+# 3. Start with Docker Compose
+docker compose up --build
 
-[
-  {
-    "id": 1,
-    "title": "Study FastAPI",
-    "done": false
-  },
-  {
-    "id": 2,
-    "title": "Read book",
-    "done": true
-  },
-  {
-    "id": 3,
-    "title": "Go to gym",
-    "done": false
-  }
-]
+# 4. Open Swagger UI
+# http://localhost:8000/docs
 ```
 
 ---
 
-## Persistence Verification
+## API Reference
 
-Persistence was verified by testing that task data survives both application and PostgreSQL container restarts without removing the Docker volume.
+| Method | Endpoint | Authentication | Description |
+|--------|----------|----------------|-------------|
+| GET | `/` | Public | API information |
+| GET | `/health` | Public | Health check |
+| GET | `/public/info` | Public | Public welcome message |
+| GET | `/tasks` | Public | Get all tasks |
+| GET | `/tasks/{id}` | Public | Get a task by ID |
+| POST | `/tasks` | Public | Create a new task |
+| PUT | `/tasks/{id}` | Public | Update a task |
+| DELETE | `/tasks/{id}` | Public | Delete a task |
+| POST | `/auth/signup` | Public | Create a new user account |
+| POST | `/auth/login` | Public | Log in and receive access token |
+| POST | `/auth/logout` | Bearer | Log out and invalidate session |
+| GET | `/protected/profile` | Bearer | Get verified user profile |
+| GET | `/protected/dashboard` | Bearer | Get dashboard with user ID |
 
-### Test performed
+---
 
-1. Two tasks were created through `POST /tasks`.
-2. The rows were confirmed directly in PostgreSQL.
-3. The FastAPI container was restarted (`docker compose restart app`). The tasks remained available.
-4. The PostgreSQL container was restarted (`docker compose restart db`). The tasks remained available.
-5. The PostgreSQL container was removed and recreated (`docker compose stop db`, `docker compose rm -f db`, `docker compose up -d db`). The Docker PostgreSQL volume was **not** deleted.
-6. The same tasks remained available after recreation.
-7. PostgreSQL was queried directly again to confirm the rows still existed.
+## Authentication
 
-### Conclusion
+Protected endpoints require a Bearer token in the `Authorization` header:
 
-This proves persistence through the Docker named volume `pgdata`. Stopping and recreating the PostgreSQL container reattaches the same volume, preserving all data.
+```text
+Authorization: Bearer <access_token>
+```
+
+The token is verified through Supabase Auth before protected route logic executes. If the token is missing, malformed, or invalid, the API returns `401` with:
+
+```json
+{"error": "Access token required"}
+```
+
+or:
+
+```json
+{"error": "Invalid or expired token"}
+```
 
 ---
 
 ## Swagger UI
 
+Open `http://localhost:8000/docs` to access the interactive Swagger UI.
+
+### Using Swagger with authentication
+
+1. Log in through `POST /auth/login` with your email and password.
+2. Copy the `access_token` from the response.
+3. Click the **Authorize** button at the top of the Swagger UI.
+4. Enter your token in the Bearer authentication field.
+5. Click **Authorize**.
+6. You can now test protected endpoints directly from Swagger.
+
 ![Swagger UI](images/Screenshot_22-7-2026_221724_127.0.0.1.jpeg)
 
 ---
 
-## Optional Local Development (A2 historical)
+## Docker Architecture
 
-The following commands are from the earlier A2 setup that used SQLite. They are not the primary way to run the current A3 project.
+```text
+FastAPI container
+      |
+      | db:5432
+      ↓
+PostgreSQL container
+      |
+      ↓
+Docker named volume: pgdata
+```
+
+The FastAPI container connects to PostgreSQL using the Docker Compose service name `db`. The PostgreSQL container persists data in the named volume `pgdata`, which survives container restarts and recreation.
+
+---
+
+## Project Structure
+
+```text
+app/
+├── main.py                 # FastAPI application setup, router wiring
+├── router.py               # Task CRUD routes
+├── service.py              # Task business logic
+├── repository.py           # Abstract TaskRepository interface
+├── postgres_repository.py  # PostgreSQL implementation
+├── postgres_connection.py  # Database connection from environment
+├── models.py               # Pydantic request/response models
+├── supabase_client.py      # Supabase client initialization
+├── auth_dependency.py      # Reusable authentication dependency
+├── auth_error.py           # Custom AuthError exception
+├── auth_router.py          # Signup, login, logout endpoints
+├── gates_router.py         # Public and protected route endpoints
+├── database.py             # (legacy SQLite connection)
+├── sqlite_repository.py    # (legacy SQLite implementation)
+├── __init__.py
+Dockerfile
+docker-compose.yml
+sql/
+├── init.sql                # Database initialization script
+.env.example                # Environment variable template
+.gitignore
+README.md
+requirment.txt              # Python dependencies
+```
+
+---
+
+## A2 Historical Reference
+
+In A2, the application used SQLite as its storage backend. The current A3+ architecture uses PostgreSQL. The legacy A2 setup is documented here for historical reference.
 
 ```bash
+# A2 setup (historical — not the primary way to run)
 pip install -r requirment.txt
 uvicorn Fast:app --reload
 ```
 
-Open Swagger UI:
-
-```
-http://127.0.0.1:8000/docs
-```
-
----
-
-## A2 SQLite History
-
-In A2, the application used **SQLite** as its storage backend.
-
 A2 storage flow:
 
 ```text
-SQLiteTaskRepository
-  ↓
-SQLite (tasks.db)
+SQLiteTaskRepository → SQLite (tasks.db)
 ```
 
-A3 storage flow:
+Current A3+ storage flow:
 
 ```text
-PostgresTaskRepository
-  ↓
-PostgreSQL (Docker)
+PostgresTaskRepository → PostgreSQL (Docker)
 ```
-
-### Why SQLite was used in A2
-
-SQLite was chosen for A2 because:
-
-- It is lightweight and requires no configuration.
-- It does not require a separate database server to run.
-- The entire database is stored in a single local file (`tasks.db`).
-- It was well-suited for the learning project in A2.
-
-### SQLite database viewer
-
-The SQLite database was inspected using DB Browser for SQLite.
-
-![SQLite Database Viewer](images/stage4-database.png)
-
-### Example SQL query (A2)
-
-The following query was executed during A2 Stage 4 using DB Browser for SQLite:
-
-```sql
-SELECT * FROM tasks WHERE done = 1;
-```
-
-This query returns only the completed tasks (where `done` is `1` / `true`).
-
-### Stage 4 verification (A2)
-
-During A2 Stage 4, the database was manually modified using DB Browser for SQLite.
-
-For example, after running:
-
-```sql
-UPDATE tasks SET done = 1;
-```
-
-the `GET /tasks` endpoint confirmed that all tasks now had `done: true`. This verified that the API reads directly from the database.
 
 ---
 
-## A3 Containerization Summary
+## Technology Stack
 
-A3 demonstrates the following:
+| Technology | Purpose |
+|------------|---------|
+| FastAPI | Web framework |
+| PostgreSQL 16 | Persistent database |
+| Docker Compose | Container orchestration |
+| Supabase | Authentication service |
+| Pydantic | Data validation |
+| psycopg | PostgreSQL adapter |
+| Uvicorn | ASGI server |
 
-- **PostgreSQL in Docker**: PostgreSQL 16 runs as a containerized service.
-- **Persistent Docker volume**: The named volume `pgdata` ensures data survives container restarts and recreation.
-- **Repository abstraction**: `TaskRepository` defines the storage interface.
-- **PostgresTaskRepository**: Implements the repository interface with PostgreSQL using `psycopg`.
-- **Docker Compose**: `docker compose up --build` starts the full stack (FastAPI + PostgreSQL).
-- **Environment-based configuration**: `DATABASE_URL` is set via environment variables. Secrets are in `.env` (gitignored).
-- **Persistence across container recreation**: Data survives PostgreSQL container removal and recreation as long as the volume is preserved.
+---
 
-The application storage was switched by replacing the repository implementation and updating the dependency wiring, while the service and route layers remained unchanged. Docker, SQL initialization, and environment configuration were added to containerize the stack.
+## License
+
+This project is for educational purposes.
