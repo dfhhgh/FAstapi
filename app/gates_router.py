@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header
+from fastapi.responses import JSONResponse
+
+from app.supabase_client import get_supabase
 
 gates_router = APIRouter()
 
@@ -15,14 +18,31 @@ async def public_info():
 @gates_router.get(
     "/protected/profile",
     summary="Protected profile",
-    description="Returns profile data. Requires a valid Bearer token.",
+    description="Returns verified user profile. Requires a valid Bearer token.",
 )
 async def protected_profile(authorization: str | None = Header(None)):
     if not authorization:
-        raise HTTPException(status_code=401, detail={"error": "Access token required"})
+        return JSONResponse(status_code=401, content={"error": "Access token required"})
 
     parts = authorization.split(" ", 1)
     if len(parts) != 2 or parts[0] != "Bearer" or not parts[1].strip():
-        raise HTTPException(status_code=401, detail={"error": "Access token required"})
+        return JSONResponse(status_code=401, content={"error": "Access token required"})
 
-    return {"message": "Profile data", "token_received": True}
+    token = parts[1].strip()
+
+    try:
+        client = get_supabase()
+        result = client.auth.get_user(token)
+    except Exception:
+        return JSONResponse(status_code=401, content={"error": "Invalid or expired token"})
+
+    if result.user is None:
+        return JSONResponse(status_code=401, content={"error": "Invalid or expired token"})
+
+    user = result.user
+
+    return {
+        "id": user.id,
+        "email": user.email,
+        "created_at": user.created_at,
+    }
