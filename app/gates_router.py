@@ -1,7 +1,6 @@
-from fastapi import APIRouter, Header
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends
 
-from app.supabase_client import get_supabase
+from app.auth_dependency import get_current_user
 
 gates_router = APIRouter()
 
@@ -20,29 +19,23 @@ async def public_info():
     summary="Protected profile",
     description="Returns verified user profile. Requires a valid Bearer token.",
 )
-async def protected_profile(authorization: str | None = Header(None)):
-    if not authorization:
-        return JSONResponse(status_code=401, content={"error": "Access token required"})
-
-    parts = authorization.split(" ", 1)
-    if len(parts) != 2 or parts[0] != "Bearer" or not parts[1].strip():
-        return JSONResponse(status_code=401, content={"error": "Access token required"})
-
-    token = parts[1].strip()
-
-    try:
-        client = get_supabase()
-        result = client.auth.get_user(token)
-    except Exception:
-        return JSONResponse(status_code=401, content={"error": "Invalid or expired token"})
-
-    if result.user is None:
-        return JSONResponse(status_code=401, content={"error": "Invalid or expired token"})
-
-    user = result.user
-
+async def protected_profile(auth=Depends(get_current_user)):
+    user = auth["user"]
     return {
         "id": user.id,
         "email": user.email,
         "created_at": user.created_at,
+    }
+
+
+@gates_router.get(
+    "/protected/dashboard",
+    summary="Protected dashboard",
+    description="Returns dashboard data. Requires a valid Bearer token.",
+)
+async def protected_dashboard(auth=Depends(get_current_user)):
+    user = auth["user"]
+    return {
+        "message": "Welcome to your dashboard",
+        "user_id": user.id,
     }
